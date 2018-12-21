@@ -375,7 +375,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci)
   for (TermInfoPtr cost : pci.cost_infos)
   {
     if (cost->term_type & TT_CNT)
-        ROS_WARN("%s is listed as a type TT_CNT but was added to cost_infos", (cost->name).c_str());
+      ROS_WARN("%s is listed as a type TT_CNT but was added to cost_infos", (cost->name).c_str());
     if (!(cost->getSupportedTypes() & TT_COST))
       PRINT_AND_THROW(boost::format("%s is only a constraint, but you listed it as a cost") % cost->name);
     if (cost->term_type & TT_USE_TIME)
@@ -388,7 +388,7 @@ TrajOptProbPtr ConstructProblem(const ProblemConstructionInfo& pci)
   for (TermInfoPtr cnt : pci.cnt_infos)
   {
     if (cnt->term_type & TT_COST)
-       ROS_WARN("%s is listed as a type TT_COST but was added to cnt_infos", (cnt->name).c_str());
+      ROS_WARN("%s is listed as a type TT_COST but was added to cnt_infos", (cnt->name).c_str());
     if (!(cnt->getSupportedTypes() & TT_CNT))
       PRINT_AND_THROW(boost::format("%s is only a cost, but you listed it as a constraint") % cnt->name);
     if (cnt->term_type & TT_USE_TIME)
@@ -521,7 +521,6 @@ TrajOptProb::TrajOptProb(int n_steps, const ProblemConstructionInfo& pci)
 }
 
 TrajOptProb::TrajOptProb() {}
-
 DynamicCartPoseTermInfo::DynamicCartPoseTermInfo() : TermInfo(TT_COST | TT_CNT)
 {
   pos_coeffs = Eigen::Vector3d::Ones();
@@ -644,14 +643,14 @@ void CartPoseTermInfo::hatch(TrajOptProb& prob)
   else if ((term_type & TT_COST) && ~(term_type | ~TT_USE_TIME))
   {
     sco::VectorOfVectorPtr f(new CartPoseErrCalculator(input_pose, prob.GetKin(), prob.GetEnv(), link, tcp));
-    prob.addCost(sco::CostPtr(
-        new TrajOptCostFromErrFunc(f, prob.GetVarRow(timestep, 0, n_dof), concat(rot_coeffs, pos_coeffs), sco::ABS, name)));
+    prob.addCost(sco::CostPtr(new TrajOptCostFromErrFunc(
+        f, prob.GetVarRow(timestep, 0, n_dof), concat(rot_coeffs, pos_coeffs), sco::ABS, name)));
   }
   else if ((term_type & TT_CNT) && ~(term_type | ~TT_USE_TIME))
   {
     sco::VectorOfVectorPtr f(new CartPoseErrCalculator(input_pose, prob.GetKin(), prob.GetEnv(), link, tcp));
-    prob.addConstraint(sco::ConstraintPtr(
-        new TrajOptConstraintFromErrFunc(f, prob.GetVarRow(timestep, 0, n_dof), concat(rot_coeffs, pos_coeffs), sco::EQ, name)));
+    prob.addConstraint(sco::ConstraintPtr(new TrajOptConstraintFromErrFunc(
+        f, prob.GetVarRow(timestep, 0, n_dof), concat(rot_coeffs, pos_coeffs), sco::EQ, name)));
   }
   else
   {
@@ -789,7 +788,7 @@ void JointPosTermInfo::hatch(TrajOptProb& prob)
   trajopt::VarArray vars = prob.GetVars();
   trajopt::VarArray joint_vars = vars.block(0, 0, vars.rows(), static_cast<int>(n_dof));
   if (prob.GetHasTime())
-        ROS_INFO("JointPosTermInfo does not differ based on setting of TT_USE_TIME");
+    ROS_INFO("JointPosTermInfo does not differ based on setting of TT_USE_TIME");
 
   if (term_type & TT_COST)
   {
@@ -1303,8 +1302,11 @@ void CollisionTermInfo::hatch(TrajOptProb& prob)
     {
       for (int i = first_step; i <= last_step - gap; ++i)
       {
-        prob.addCost(sco::CostPtr(new CollisionCost(
-            prob.GetKin(), prob.GetEnv(), info[static_cast<size_t>(i - first_step)], prob.GetVarRow(i, 0, n_dof), prob.GetVarRow(i + gap, 0, n_dof))));
+        prob.addCost(sco::CostPtr(new CollisionCost(prob.GetKin(),
+                                                    prob.GetEnv(),
+                                                    info[static_cast<size_t>(i - first_step)],
+                                                    prob.GetVarRow(i, 0, n_dof),
+                                                    prob.GetVarRow(i + gap, 0, n_dof))));
         prob.getCosts().back()->setName((boost::format("%s_%i") % name.c_str() % i).str());
       }
     }
@@ -1312,8 +1314,8 @@ void CollisionTermInfo::hatch(TrajOptProb& prob)
     {
       for (int i = first_step; i <= last_step; ++i)
       {
-        prob.addCost(
-            sco::CostPtr(new CollisionCost(prob.GetKin(), prob.GetEnv(), info[static_cast<size_t>(i - first_step)], prob.GetVarRow(i, 0, n_dof))));
+        prob.addCost(sco::CostPtr(new CollisionCost(
+            prob.GetKin(), prob.GetEnv(), info[static_cast<size_t>(i - first_step)], prob.GetVarRow(i, 0, n_dof))));
         prob.getCosts().back()->setName((boost::format("%s_%i") % name.c_str() % i).str());
       }
     }
@@ -1324,8 +1326,11 @@ void CollisionTermInfo::hatch(TrajOptProb& prob)
     {
       for (int i = first_step; i < last_step; ++i)
       {
-        prob.addIneqConstraint(sco::ConstraintPtr(new CollisionConstraint(
-            prob.GetKin(), prob.GetEnv(), info[static_cast<size_t>(i - first_step)], prob.GetVarRow(i, 0, n_dof), prob.GetVarRow(i + 1, 0, n_dof))));
+        prob.addIneqConstraint(sco::ConstraintPtr(new CollisionConstraint(prob.GetKin(),
+                                                                          prob.GetEnv(),
+                                                                          info[static_cast<size_t>(i - first_step)],
+                                                                          prob.GetVarRow(i, 0, n_dof),
+                                                                          prob.GetVarRow(i + 1, 0, n_dof))));
         prob.getIneqConstraints().back()->setName((boost::format("%s_%i") % name.c_str() % i).str());
       }
     }
@@ -1333,8 +1338,8 @@ void CollisionTermInfo::hatch(TrajOptProb& prob)
     {
       for (int i = first_step; i <= last_step; ++i)
       {
-        prob.addIneqConstraint(sco::ConstraintPtr(
-            new CollisionConstraint(prob.GetKin(), prob.GetEnv(), info[static_cast<size_t>(i - first_step)], prob.GetVarRow(i, 0, n_dof))));
+        prob.addIneqConstraint(sco::ConstraintPtr(new CollisionConstraint(
+            prob.GetKin(), prob.GetEnv(), info[static_cast<size_t>(i - first_step)], prob.GetVarRow(i, 0, n_dof))));
         prob.getIneqConstraints().back()->setName((boost::format("%s_%i") % name.c_str() % i).str());
       }
     }
