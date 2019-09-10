@@ -1,6 +1,7 @@
 #include <trajopt_utils/macros.h>
 TRAJOPT_IGNORE_WARNINGS_PUSH
 #include <Eigen/Geometry>
+#include <Eigen/Core>
 #include <boost/format.hpp>
 #include <iostream>
 #include <tesseract_kinematics/core/utils.h>
@@ -86,7 +87,12 @@ VectorXd CartPoseErrCalculator::operator()(const VectorXd& dof_vals) const
   new_pose = world_to_base_ * new_pose * kin_link_->transform * tcp_;
 
   Isometry3d pose_err = pose_inv_ * new_pose;
-  return concat(pose_err.translation(), calcRotationalError(pose_err.rotation()));
+  Eigen::VectorXd err = concat(pose_err.translation(), calcRotationalError(pose_err.rotation()));
+  Eigen::VectorXd reduced_err(indices_.size());
+  for (int i = 0; i < indices_.size(); ++i)
+    reduced_err[i] = err[indices_[i]];
+
+  return reduced_err; // This is available in 3.4 err(indices_, Eigen::all);
 }
 
 void CartPoseErrCalculator::Plot(const tesseract_visualization::Visualization::Ptr& plotter, const VectorXd& dof_vals)
@@ -115,7 +121,11 @@ MatrixXd CartPoseJacCalculator::operator()(const VectorXd& dof_vals) const
   tesseract_kinematics::jacobianChangeRefPoint(jac0, (world_to_base_ * tf0).linear() * (kin_link_->transform * tcp_).translation());
   tesseract_kinematics::jacobianChangeBase(jac0, pose_inv_);
 
-  return jac0;
+  MatrixXd reduced_jac(indices_.size(), n_dof);
+  for (int i = 0; i < indices_.size(); ++i)
+    reduced_jac.row(i) = jac0.row(indices_[i]);
+
+  return reduced_jac; // This is available in 3.4 jac0(indices_, Eigen::all);
 }
 
 MatrixXd CartVelJacCalculator::operator()(const VectorXd& dof_vals) const

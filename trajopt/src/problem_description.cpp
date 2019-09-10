@@ -677,6 +677,31 @@ void CartPoseTermInfo::hatch(TrajOptProb& prob)
   tesseract_environment::AdjacencyMap::Ptr adjacency_map = std::make_shared<tesseract_environment::AdjacencyMap>(
       prob.GetEnv()->getSceneGraph(), prob.GetKin()->getActiveLinkNames(), state->transforms);
 
+  std::vector<int> ic;
+  std::vector<double> c;
+  ic.reserve(6);
+  c.reserve(6);
+  for (int i = 0; i < 3; ++i)
+  {
+    if (std::abs(pos_coeffs[i]) > 1e-5)
+    {
+      ic.push_back(i);
+      c.push_back(pos_coeffs[i]);
+    }
+  }
+
+  for (int i = 0; i < 3; ++i)
+  {
+    if (std::abs(rot_coeffs[i]) > 1e-5)
+    {
+      ic.push_back(i + 3);
+      c.push_back(rot_coeffs[i]);
+    }
+  }
+
+  Eigen::VectorXi indices = Eigen::Map<Eigen::VectorXi>(ic.data(), static_cast<long>(ic.size()));
+  Eigen::VectorXd coeff = Eigen::Map<Eigen::VectorXd>(c.data(), static_cast<long>(c.size()));
+
   if (term_type == (TT_COST | TT_USE_TIME))
   {
     CONSOLE_BRIDGE_logError("Use time version of this term has not been defined.");
@@ -687,17 +712,17 @@ void CartPoseTermInfo::hatch(TrajOptProb& prob)
   }
   else if ((term_type & TT_COST) && ~(term_type | ~TT_USE_TIME))
   {
-    sco::VectorOfVector::Ptr f(new CartPoseErrCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link, tcp));
-    sco::MatrixOfVector::Ptr dfdx(new CartPoseJacCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link));
+    sco::VectorOfVector::Ptr f(new CartPoseErrCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link, tcp, indices));
+    sco::MatrixOfVector::Ptr dfdx(new CartPoseJacCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link, tcp, indices));
     prob.addCost(sco::Cost::Ptr(new TrajOptCostFromErrFunc(
-        f, dfdx, prob.GetVarRow(timestep, 0, n_dof), concat(pos_coeffs, rot_coeffs), sco::ABS, name)));
+        f, dfdx, prob.GetVarRow(timestep, 0, n_dof), coeff, sco::ABS, name)));
   }
   else if ((term_type & TT_CNT) && ~(term_type | ~TT_USE_TIME))
   {
-    sco::VectorOfVector::Ptr f(new CartPoseErrCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link, tcp));
-    sco::MatrixOfVector::Ptr dfdx(new CartPoseJacCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link));
+    sco::VectorOfVector::Ptr f(new CartPoseErrCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link, tcp, indices));
+    sco::MatrixOfVector::Ptr dfdx(new CartPoseJacCalculator(input_pose, prob.GetKin(), adjacency_map, world_to_base, link, tcp, indices));
     prob.addConstraint(sco::Constraint::Ptr(new TrajOptConstraintFromErrFunc(
-        f, dfdx, prob.GetVarRow(timestep, 0, n_dof), concat(pos_coeffs, rot_coeffs), sco::EQ, name)));
+        f, dfdx, prob.GetVarRow(timestep, 0, n_dof), coeff, sco::EQ, name)));
   }
   else
   {
