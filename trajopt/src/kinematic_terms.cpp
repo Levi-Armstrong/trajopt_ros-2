@@ -79,6 +79,73 @@ void DynamicCartPoseErrCalculator::Plot(const tesseract_visualization::Visualiza
   plotter->plotArrow(cur_tf.translation(), target_tf.translation(), Eigen::Vector4d(1, 0, 1, 1), 0.005);
 }
 
+MatrixXd DynamicCartPoseJacCalculator::operator()(const VectorXd& dof_vals) const
+{
+  int n_dof = static_cast<int>(manip_->numJoints());
+  MatrixXd jac_link(6, n_dof), jac_target(6, n_dof), jac0(6, n_dof);
+
+  Isometry3d cur_pose, target_pose;
+
+  manip_->calcFwdKin(cur_pose, dof_vals, kin_link_->link_name);
+  manip_->calcFwdKin(target_pose, dof_vals, kin_target_->link_name);
+
+  Eigen::Isometry3d cur_tf = world_to_base_ * cur_pose * kin_link_->transform * tcp_;
+  Eigen::Isometry3d target_tf = world_to_base_ * target_pose * kin_target_->transform * target_tcp_;
+
+  // Get the jacobian of link in the targets coordinate system
+  manip_->calcJacobian(jac_link, dof_vals, kin_link_->link_name);
+  tesseract_kinematics::jacobianChangeBase(jac_link, world_to_base_);
+  tesseract_kinematics::jacobianChangeRefPoint(jac_link, (world_to_base_ * cur_pose).linear() * (kin_link_->transform * tcp_).translation());
+  tesseract_kinematics::jacobianChangeBase(jac_link, target_tf.inverse());
+//  tesseract_kinematics::jacobianChangeRefPoint(jac_link, (cur_tf.inverse() * target_tf).translation());
+
+  // Get the jacobian of the target in the targets coordinate system
+  manip_->calcJacobian(jac_target, dof_vals, kin_target_->link_name);
+  tesseract_kinematics::jacobianChangeBase(jac_target, world_to_base_);
+  tesseract_kinematics::jacobianChangeRefPoint(jac_target, (world_to_base_ * target_pose).linear() * (kin_target_->transform * target_tcp_).translation());
+  tesseract_kinematics::jacobianChangeBase(jac_target, target_tf.inverse());
+  tesseract_kinematics::jacobianChangeRefPoint(jac_target, (target_tf.inverse() * cur_tf).translation());
+
+  jac0 = jac_link - jac_target;
+  MatrixXd reduced_jac(indices_.size(), n_dof);
+  for (int i = 0; i < indices_.size(); ++i)
+    reduced_jac.row(i) = jac0.row(indices_[i]);
+
+  {
+    auto toString = [](const Eigen::MatrixXd& mat){
+        std::stringstream ss;
+        ss << mat;
+        return ss.str();
+    };
+
+    MatrixXd temp_jac(6, n_dof);
+    temp_manip_->calcJacobian(temp_jac, dof_vals, kin_link_->link_name);
+    CONSOLE_BRIDGE_logError("Temp Jac1:\n %s", toString(temp_jac).c_str());
+    tesseract_kinematics::jacobianChangeBase(temp_jac, world_to_base_);
+    tesseract_kinematics::jacobianChangeRefPoint(temp_jac, (world_to_base_ * cur_pose).linear() * (kin_link_->transform * tcp_).translation());
+    CONSOLE_BRIDGE_logError("Temp Jac3:\n %s", toString(temp_jac).c_str());
+    tesseract_kinematics::jacobianChangeBase(temp_jac, target_tf.inverse());
+
+    Eigen::MatrixXd numerical = sco::calcForwardNumJac(temp_err_calc_, dof_vals, 1.0e-5);
+
+    bool pass = numerical.isApprox(reduced_jac, 1e-5);
+    if (!pass)
+    {
+
+      CONSOLE_BRIDGE_logError("Link Jac:\n %s", toString(jac_link).c_str());
+      CONSOLE_BRIDGE_logError("Target Jac:\n %s", toString(jac_target).c_str());
+      CONSOLE_BRIDGE_logError("Link Jac:\n %s", toString(temp_jac).c_str());
+
+      CONSOLE_BRIDGE_logError("Numerical:\n %s", toString(numerical).c_str());
+      CONSOLE_BRIDGE_logError("Analytical:\n %s", toString(reduced_jac).c_str());
+    }
+
+    return temp_jac;
+  }
+
+  return reduced_jac; // This is available in 3.4 jac0(indices_, Eigen::all);
+}
+
 VectorXd CartPoseErrCalculator::operator()(const VectorXd& dof_vals) const
 {
   Isometry3d new_pose;

@@ -16,6 +16,8 @@ TRAJOPT_IGNORE_WARNINGS_POP
 #include <trajopt_utils/logging.hpp>
 #include <trajopt_utils/vector_ops.hpp>
 
+#include <tesseract_kinematics/kdl/kdl_fwd_kin_chain.h>
+
 namespace
 {
 bool gRegisteredMakers = false;
@@ -605,18 +607,23 @@ void DynamicCartPoseTermInfo::hatch(TrajOptProb& prob)
     tesseract_environment::AdjacencyMap::Ptr adjacency_map = std::make_shared<tesseract_environment::AdjacencyMap>(
         prob.GetEnv()->getSceneGraph(), prob.GetKin()->getActiveLinkNames(), state->transforms);
 
-    sco::VectorOfVector::Ptr f(
-        new DynamicCartPoseErrCalculator(target, prob.GetKin(), adjacency_map, world_to_base, link, tcp));
+    auto temp_kin = std::make_shared<tesseract_kinematics::KDLFwdKinChain>();
+    temp_kin->init(prob.GetEnv()->getSceneGraph(), target, link, "temp_kin");
+    Eigen::VectorXi indices = Eigen::Matrix<int, 1, 6>(std::vector<int>({0, 1, 2, 3, 4, 5}).data());
+
+    sco::VectorOfVector::Ptr f(new DynamicCartPoseErrCalculator(target, prob.GetKin(), adjacency_map, world_to_base, link, tcp, target_tcp, indices));
+    sco::MatrixOfVector::Ptr dfdx(new DynamicCartPoseJacCalculator(target, prob.GetKin(), adjacency_map, world_to_base, link, tcp, target_tcp, indices, temp_kin));
+
     // Apply error calculator as either cost or constraint
     if (term_type & TT_COST)
     {
       prob.addCost(sco::Cost::Ptr(new TrajOptCostFromErrFunc(
-          f, prob.GetVarRow(timestep, 0, n_dof), concat(rot_coeffs, pos_coeffs), sco::ABS, name)));
+          f, dfdx, prob.GetVarRow(timestep, 0, n_dof), concat(pos_coeffs, rot_coeffs), sco::ABS, name)));
     }
     else if (term_type & TT_CNT)
     {
       prob.addConstraint(sco::Constraint::Ptr(new TrajOptConstraintFromErrFunc(
-          f, prob.GetVarRow(timestep, 0, n_dof), concat(rot_coeffs, pos_coeffs), sco::EQ, name)));
+          f, dfdx, prob.GetVarRow(timestep, 0, n_dof), concat(pos_coeffs, rot_coeffs), sco::EQ, name)));
     }
     else
     {
