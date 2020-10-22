@@ -14,8 +14,8 @@ find_package(cmake_common_scripts REQUIRED)
 
 if(NOT TARGET console_bridge::console_bridge)
   add_library(console_bridge::console_bridge INTERFACE IMPORTED)
-  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${console_bridge_INCLUDE_DIRS}")
-  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_LINK_LIBRARIES "${console_bridge_LIBRARIES}")
+  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${console_bridge_INCLUDE_DIRS})
+  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_LINK_LIBRARIES ${console_bridge_LIBRARIES})
 endif()
 
 # Load variable for clang tidy args, compiler options and cxx version
@@ -35,6 +35,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ifopt::ifopt_core
   OsqpEigen::OsqpEigen
 )
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${console_bridge_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
