@@ -15,6 +15,12 @@ find_package(tesseract_visualization REQUIRED)
 find_package(jsoncpp REQUIRED)
 find_package(cmake_common_scripts REQUIRED)
 
+if(NOT TARGET console_bridge::console_bridge)
+  add_library(console_bridge::console_bridge INTERFACE IMPORTED)
+  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${console_bridge_INCLUDE_DIRS}")
+  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_LINK_LIBRARIES "${console_bridge_LIBRARIES}")
+endif()
+
 # Load variable for clang tidy args, compiler options and cxx version
 trajopt_variables()
 
@@ -40,7 +46,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     trajopt::trajopt_utils
     tesseract::tesseract
     tesseract::tesseract_visualization
-    console_bridge
+    console_bridge::console_bridge
     ${Boost_SYSTEM_LIBRARY}
     jsoncpp_lib)
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${TRAJOPT_COMPILE_DEFINITIONS})
