@@ -17,6 +17,9 @@ if(NOT TARGET console_bridge::console_bridge)
   set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${console_bridge_INCLUDE_DIRS})
   set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_LINK_LIBRARIES ${console_bridge_LIBRARIES})
 endif()
+get_target_property(TEMP_INCLUDES console_bridge::console_bridge INTERFACE_INCLUDE_DIRECTORIES)
+message(AUTHOR_WARNING "SQP InterfaceInclude: ${TEMP_INCLUDES}")
+set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${console_bridge_INCLUDE_DIRS})
 
 # Load variable for clang tidy args, compiler options and cxx version
 trajopt_variables()
@@ -35,6 +38,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ifopt::ifopt_core
   OsqpEigen::OsqpEigen
 )
+# This is required for windows not sure why targets are not working on windows.
 target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${console_bridge_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME}
   PUBLIC
