@@ -42,8 +42,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   ifopt::ifopt_core
   OsqpEigen::OsqpEigen
 )
-# This is required for windows not sure why targets are not working on windows.
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${console_bridge_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
