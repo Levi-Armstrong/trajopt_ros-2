@@ -14,6 +14,8 @@ TRAJOPT_IGNORE_WARNINGS_POP
 
 #include <trajopt_sqp/trust_region_sqp_solver.h>
 #include <trajopt_sqp/osqp_eigen_solver.h>
+#include <trajopt_sqp/callbacks/cartesian_error_plotter.h>
+
 #include <trajopt_ifopt/constraints/cartesian_position_constraint.h>
 #include <trajopt_ifopt/variable_sets/joint_position_variable.h>
 #include <trajopt_ifopt/costs/squared_cost.h>
@@ -53,6 +55,8 @@ class CartPositionOptimization : public testing::TestWithParam<const char*>
 public:
   // 1) Create the problem
   ifopt::Problem nlp_;
+  std::vector<trajopt_sqp::SQPCallback::Ptr> callbacks_;
+  tesseract_visualization::Visualization::Ptr plotter_;
 
   Eigen::VectorXd joint_target_;
 
@@ -105,10 +109,13 @@ public:
     }
 
     // 4) Add constraints
+    auto cart_error_cb = std::make_shared<trajopt_sqp::CartesianErrorPlottingCallback>(plotter_);
+    callbacks_.push_back(cart_error_cb);
     for (const auto& var : vars)
     {
       auto cnt = std::make_shared<trajopt::CartPosConstraint>(target_pose, kinematic_info, var);
       nlp_.AddConstraintSet(cnt);
+      cart_error_cb->addConstraintSet(cnt);
     }
 
     if (DEBUG)
@@ -134,6 +141,10 @@ TEST_F(CartPositionOptimization, cart_position_optimization_trajopt_sqp)  // NOL
   qp_solver->solver_.settings()->setMaxIteraction(8192);
   qp_solver->solver_.settings()->setAbsoluteTolerance(1e-4);
   qp_solver->solver_.settings()->setRelativeTolerance(1e-6);
+
+  // add plotter callbacks
+  for (auto& cb : callbacks_)
+    solver.registerCallback(cb);
 
   // solve
   solver.verbose = DEBUG;

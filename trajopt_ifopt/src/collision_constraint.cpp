@@ -48,6 +48,44 @@ CollisionConstraintIfopt::CollisionConstraintIfopt(SingleTimestepCollisionEvalua
   bounds_ = std::vector<ifopt::Bounds>(1, ifopt::BoundSmallerZero);
 }
 
+CollisionConstraintIfopt::CollisionConstraintIfopt(tesseract_kinematics::ForwardKinematics::ConstPtr manip,
+                                                   tesseract_environment::Environment::ConstPtr env,
+                                                   tesseract_environment::AdjacencyMap::ConstPtr adjacency_map,
+                                                   const Eigen::Isometry3d& world_to_base,
+                                                   SafetyMarginData::ConstPtr safety_margin_data,
+                                                   tesseract_collision::ContactTestType contact_test_type,
+                                                   double longest_valid_segment_length,
+                                                   JointPosition::ConstPtr position_var,
+                                                   CollisionExpressionEvaluatorType type,
+                                                   double safety_margin_buffer,
+                                                   const std::string& name = "Collision",
+                                                   bool dynamic_environment)
+  : ifopt::ConstraintSet(1, name)
+  , position_var_(std::move(position_var))
+  , manip_(std::move(manip))
+  , env_(std::move(env))
+  , adjacency_map_(std::move(adjacency_map))
+  , world_to_base_(world_to_base)
+  , safety_margin_data_(std::move(safety_margin_data))
+  , safety_margin_buffer_(safety_margin_buffer)
+  , contact_test_type_(contact_test_type)
+  , longest_valid_segment_length_(longest_valid_segment_length)
+  , state_solver_(env_->getStateSolver())
+  , dynamic_environment_(dynamic_environment)
+{
+  // If the environment is not expected to change, then the cloned state solver may be used each time.
+  if (dynamic_environment_)
+    get_state_fn_ = [&](const std::vector<std::string>& joint_names,
+                        const Eigen::Ref<const Eigen::VectorXd>& joint_values) {
+      return env_->getState(joint_names, joint_values);
+    };
+  else
+    get_state_fn_ = [&](const std::vector<std::string>& joint_names,
+                        const Eigen::Ref<const Eigen::VectorXd>& joint_values) {
+      return state_solver_->getState(joint_names, joint_values);
+    };
+}
+
 Eigen::VectorXd CollisionConstraintIfopt::CalcValues(const Eigen::Ref<Eigen::VectorXd>& joint_vals) const
 {
   Eigen::VectorXd err = Eigen::VectorXd::Zero(1);
@@ -63,7 +101,7 @@ Eigen::VectorXd CollisionConstraintIfopt::CalcValues(const Eigen::Ref<Eigen::Vec
   for (tesseract_collision::ContactResult& dist_result : dist_results)
   {
     // Contains the contact distance threshold and coefficient for the given link pair
-    const Eigen::Vector2d& data = collision_evaluator_->getSafetyMarginData()->getPairSafetyMarginData(
+    const Eigen::Vector2d& data = safety_margin_data_->getPairSafetyMarginData(
         dist_result.link_names[0], dist_result.link_names[1]);
     // distance will be distance from threshold with negative being greater (further) than the threshold times the
     // coeff
@@ -99,7 +137,7 @@ void CollisionConstraintIfopt::CalcJacobianBlock(const Eigen::Ref<Eigen::VectorX
   tesseract_collision::ContactResultVector dist_results;
   {
     tesseract_collision::ContactResultMap dist_results_map;
-    collision_evaluator_->CalcCollisions(joint_vals, dist_results_map);
+    CalcCollisions(joint_vals, dist_results_map);
     tesseract_collision::flattenMoveResults(std::move(dist_results_map), dist_results);
   }
 
@@ -109,7 +147,7 @@ void CollisionConstraintIfopt::CalcJacobianBlock(const Eigen::Ref<Eigen::VectorX
   for (tesseract_collision::ContactResult& dist_result : dist_results)
   {
     // Contains the contact distance threshold and coefficient for the given link pair
-    const Eigen::Vector2d& data = collision_evaluator_->getSafetyMarginData()->getPairSafetyMarginData(
+    const Eigen::Vector2d& data = safety_margin_data_->getPairSafetyMarginData(
         dist_result.link_names[0], dist_result.link_names[1]);
     grad_results.push_back(collision_evaluator_->GetGradient(joint_vals, dist_result, data, true));
   }
@@ -145,4 +183,72 @@ void CollisionConstraintIfopt::FillJacobianBlock(std::string var_set, Jacobian& 
     CalcJacobianBlock(joint_vals, jac_block);
   }
 }
+
+void CollisionConstraintIfopt::CalcCollisions(const Eigen::Ref<Eigen::VectorXd> &joint_vals,
+                                              tesseract_collision::ContactResultMap& dist_results)
+{
+  tesseract_environment::EnvState::Ptr state = get_state_fn_(manip_->getJointNames(), joint_vals);
+
+  for (const auto& link_name : env_->getActiveLinkNames())
+    contact_manager_->setCollisionObjectsTransform(link_name, state->link_transforms[link_name]);
+
+  contact_manager_->contactTest(dist_results, contact_test_type_);
+
+  for (auto& pair : dist_results)
+  {
+    // Contains the contact distance threshold and coefficient for the given link pair
+    const Eigen::Vector2d& data = safety_margin_data_->getPairSafetyMarginData(pair.first.first, pair.first.second);
+    auto end = std::remove_if(
+        pair.second.begin(), pair.second.end(), [&data, this](const tesseract_collision::ContactResult& r) {
+          return (!((data[0] + safety_margin_buffer_) > r.distance));
+        });
+    pair.second.erase(end, pair.second.end());
+  }
+}
+
+void CollisionConstraintIfopt::CalcCollisions(tesseract_collision::ContactResultMap& dist_map,
+                                              tesseract_collision::ContactResultVector& dist_vector)
+{
+  CalcCollisions(GetVariables()->GetComponent(position_var_->GetName())->GetValues(), dist_map);
+  tesseract_collision::flattenCopyResults(dist_map, dist_vector);
+}
+
+
+inline size_t hash(const Eigen::VectorXd& x) { return boost::hash_range(&x(0), &x(0) + x.size()); }
+void CollisionConstraintIfopt::GetCollisionsCached(tesseract_collision::ContactResultVector& dist_vector)
+{
+  size_t key = hash(GetVariables()->GetComponent(position_var_->GetName())->GetValues());
+  auto it = cache_.get(key);
+  if (it != nullptr)
+  {
+    CONSOLE_BRIDGE_logDebug("Uing cached collision check");
+    dist_vector = it->second;
+  }
+  else
+  {
+    CONSOLE_BRIDGE_logDebug("Not using cached collision check");
+    tesseract_collision::ContactResultMap dist_map;
+    CalcCollisions(dist_map, dist_vector);
+    cache_.put(key, std::make_pair(dist_map, dist_vector));
+  }
+}
+
+void CollisionConstraintIfopt::GetCollisionsCached(tesseract_collision::ContactResultMap& dist_map)
+{
+  size_t key = hash(GetVariables()->GetComponent(position_var_->GetName())->GetValues());
+  auto it = cache_.get(key);
+  if (it != nullptr)
+  {
+    CONSOLE_BRIDGE_logDebug("Uing cached collision check");
+    dist_map = it->first;
+  }
+  else
+  {
+    CONSOLE_BRIDGE_logDebug("Not using cached collision check");
+    tesseract_collision::ContactResultVector dist_vector;
+    CalcCollisions(dist_map, dist_vector);
+    cache_.put(key, std::make_pair(dist_map, dist_vector));
+  }
+}
+
 }  // namespace trajopt
