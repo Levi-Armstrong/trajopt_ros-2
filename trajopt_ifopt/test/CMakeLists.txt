@@ -62,6 +62,7 @@ add_gtest(${PROJECT_NAME}_continuous_collision_gradient_unit continuous_collisio
 add_gtest(${PROJECT_NAME}_cost_wrappers_unit cost_wrappers_unit.cpp)
 add_gtest(${PROJECT_NAME}_discrete_collision_gradient_unit discrete_collision_gradient_unit.cpp)
 add_gtest(${PROJECT_NAME}_inverse_kinematics_constraint_unit inverse_kinematics_constraint_unit.cpp)
+add_gtest(${PROJECT_NAME}_joint_acceleration_constraint_unit joint_acceleration_constraint_unit.cpp)
 add_gtest(${PROJECT_NAME}_joint_terms_unit joint_terms_unit.cpp)
 add_gtest(${PROJECT_NAME}_utils_unit utils_unit.cpp)
 add_gtest(${PROJECT_NAME}_variable_sets_unit variable_sets_unit.cpp)
