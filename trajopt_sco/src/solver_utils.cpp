@@ -1,6 +1,7 @@
 #include <trajopt_common/macros.h>
 TRAJOPT_IGNORE_WARNINGS_PUSH
 #include <Eigen/SparseCore>
+#include <boost/thread/tss.hpp>
 #include <sstream>
 TRAJOPT_IGNORE_WARNINGS_POP
 
@@ -65,7 +66,17 @@ void exprToEigen(const QuadExpr& expr,
   vector = vector_sparse;
 
   using T = Eigen::Triplet<double>;
+
+#ifdef USE_THREAD_LOCAL
   thread_local std::vector<T, Eigen::aligned_allocator<T>> triplets;
+#else
+  static boost::thread_specific_ptr<std::vector<T, Eigen::aligned_allocator<T>>> triplets_ptr;
+  if (triplets_ptr.get() == nullptr)
+    triplets_ptr.reset(new std::vector<T, Eigen::aligned_allocator<T>>());  // NOLINT
+
+  std::vector<T, Eigen::aligned_allocator<T>>& triplets = *triplets_ptr;
+#endif
+
   triplets.clear();
 
   for (std::size_t i = 0; i < expr.coeffs.size(); ++i)
@@ -119,7 +130,15 @@ void exprToEigen(const AffExprVector& expr_vec,
   sparse_matrix.resize(static_cast<long int>(expr_vec.size()), n_vars);
 
   using T = Eigen::Triplet<double>;
+#ifdef USE_THREAD_LOCAL
   thread_local std::vector<T, Eigen::aligned_allocator<T>> triplets;
+#else
+  static boost::thread_specific_ptr<std::vector<T, Eigen::aligned_allocator<T>>> triplets_ptr;
+  if (triplets_ptr.get() == nullptr)
+    triplets_ptr.reset(new std::vector<T, Eigen::aligned_allocator<T>>());  // NOLINT
+
+  std::vector<T, Eigen::aligned_allocator<T>>& triplets = *triplets_ptr;
+#endif
   triplets.clear();
 
   for (int i = 0; i < static_cast<int>(expr_vec.size()); ++i)
@@ -154,7 +173,15 @@ void tripletsToEigen(const IntVec& rows_i,
   sparse_matrix.reserve(static_cast<Eigen::Index>(values_ij.size()));
 
   using T = Eigen::Triplet<double>;
+#ifdef USE_THREAD_LOCAL
   thread_local std::vector<T, Eigen::aligned_allocator<T>> triplets;
+#else
+  static boost::thread_specific_ptr<std::vector<T, Eigen::aligned_allocator<T>>> triplets_ptr;
+  if (triplets_ptr.get() == nullptr)
+    triplets_ptr.reset(new std::vector<T, Eigen::aligned_allocator<T>>());  // NOLINT
+
+  std::vector<T, Eigen::aligned_allocator<T>>& triplets = *triplets_ptr;
+#endif
   triplets.clear();
   triplets.reserve(values_ij.size());
 

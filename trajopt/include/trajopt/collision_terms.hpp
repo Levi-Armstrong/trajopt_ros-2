@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <Eigen/Core>
+#include <boost/thread/tss.hpp>
 
 #include <tesseract_collision/core/fwd.h>
 #include <tesseract_collision/core/types.h>
@@ -237,8 +238,13 @@ protected:
 
   std::pair<ContactResultMapConstPtr, ContactResultVectorConstPtr> GetContactResultCached(const DblVec& x);
 
+#ifdef USE_THREAD_LOCAL
   static thread_local tesseract_common::TransformMap transforms_cache0;  // NOLINT
   static thread_local tesseract_common::TransformMap transforms_cache1;  // NOLINT
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache0_ptr;  // NOLINT
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache1_ptr;  // NOLINT
+#endif
 
   void CollisionsToDistanceExpressions(sco::AffExprVector& exprs,
                                        std::vector<double>& exprs_margin,

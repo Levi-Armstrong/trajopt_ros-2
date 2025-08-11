@@ -36,8 +36,15 @@ TRAJOPT_IGNORE_WARNINGS_POP
 
 namespace trajopt_ifopt
 {
+#ifdef USE_THREAD_LOCAL
 thread_local tesseract_common::TransformMap ContinuousCollisionEvaluator::transforms_cache0;  // NOLINT
 thread_local tesseract_common::TransformMap ContinuousCollisionEvaluator::transforms_cache1;  // NOLINT
+#else
+boost::thread_specific_ptr<tesseract_common::TransformMap>
+    ContinuousCollisionEvaluator::transforms_cache0_ptr;  // NOLINT
+boost::thread_specific_ptr<tesseract_common::TransformMap>
+    ContinuousCollisionEvaluator::transforms_cache1_ptr;  // NOLINT
+#endif
 
 LVSContinuousCollisionEvaluator::LVSContinuousCollisionEvaluator(
     std::shared_ptr<CollisionCache> collision_cache,
@@ -197,6 +204,18 @@ void LVSContinuousCollisionEvaluator::CalcCollisionsHelper(tesseract_collision::
   // the collision checking is broken up into multiple casted collision checks such that each check is less then
   // the longest valid segment length.
   const double dist = (dof_vals1 - dof_vals0).norm();
+
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache0_ptr.get() == nullptr)
+    transforms_cache0_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache0 = *transforms_cache0_ptr;
+
+  if (transforms_cache1_ptr.get() == nullptr)
+    transforms_cache1_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache1 = *transforms_cache1_ptr;
+#endif
 
   transforms_cache0.clear();
   transforms_cache1.clear();
@@ -445,6 +464,13 @@ void LVSDiscreteCollisionEvaluator::CalcCollisionsHelper(tesseract_collision::Co
                                                          bool vars0_fixed,
                                                          bool vars1_fixed)
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache0_ptr.get() == nullptr)
+    transforms_cache0_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache0 = *transforms_cache0_ptr;
+#endif
+
   transforms_cache0.clear();
 
   // If not empty then there are links that are not part of the kinematics object that can move (dynamic environment)

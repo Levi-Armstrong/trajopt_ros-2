@@ -32,6 +32,7 @@ TRAJOPT_IGNORE_WARNINGS_PUSH
 #include <tesseract_kinematics/core/joint_group.h>
 #include <tesseract_environment/environment.h>
 #include <console_bridge/console.h>
+#include <boost/thread/tss.hpp>
 TRAJOPT_IGNORE_WARNINGS_POP
 
 namespace trajopt_ifopt
@@ -160,7 +161,16 @@ SingleTimestepCollisionEvaluator::CalcCollisions(const Eigen::Ref<const Eigen::V
 void SingleTimestepCollisionEvaluator::CalcCollisionsHelper(const Eigen::Ref<const Eigen::VectorXd>& dof_vals,
                                                             tesseract_collision::ContactResultMap& dist_results)
 {
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_common::TransformMap state;
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> state_ptr;
+  if (state_ptr.get() == nullptr)
+    state_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& state = *state_ptr;
+#endif
+
   state.clear();
 
   get_state_fn_(state, dof_vals);

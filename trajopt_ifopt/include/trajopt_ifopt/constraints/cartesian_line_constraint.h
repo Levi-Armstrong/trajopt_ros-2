@@ -31,6 +31,7 @@
 #include <trajopt_common/macros.h>
 TRAJOPT_IGNORE_WARNINGS_PUSH
 #include <Eigen/Geometry>
+#include <boost/thread/tss.hpp>
 #include <ifopt/constraint_set.h>
 #include <tesseract_common/eigen_types.h>
 #include <tesseract_kinematics/core/fwd.h>
@@ -196,7 +197,11 @@ private:
   /** @brief The error function to calculate the error difference used for jacobian calculations */
   ErrorDiffFunctionType error_diff_function_{ nullptr };
 
+#ifdef USE_THREAD_LOCAL
   static thread_local tesseract_common::TransformMap transforms_cache;  // NOLINT
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;  // NOLINT
+#endif
 };
 }  // namespace trajopt_ifopt
 #endif

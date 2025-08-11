@@ -75,7 +75,11 @@ CartPosInfo::CartPosInfo(std::shared_ptr<const tesseract_kinematics::JointGroup>
     throw std::runtime_error("CartPosInfo: Target and Source are both static links.");
 }
 
+#ifdef USE_THREAD_LOCAL
 thread_local tesseract_common::TransformMap CartPosConstraint::transforms_cache;  // NOLINT
+#else
+boost::thread_specific_ptr<tesseract_common::TransformMap> CartPosConstraint::transforms_cache_ptr;  // NOLINT
+#endif
 
 CartPosConstraint::CartPosConstraint(CartPosInfo info,
                                      std::shared_ptr<const JointPosition> position_var,
@@ -207,6 +211,13 @@ CartPosConstraint::CartPosConstraint(const CartPosInfo& info,
 
 Eigen::VectorXd CartPosConstraint::CalcValues(const Eigen::Ref<const Eigen::VectorXd>& joint_vals) const
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   info_.manip->calcFwdKin(transforms_cache, joint_vals);
   const Eigen::Isometry3d source_tf = transforms_cache[info_.source_frame] * info_.source_frame_offset;
@@ -235,6 +246,13 @@ void CartPosConstraint::SetBounds(const std::vector<ifopt::Bounds>& bounds)
 void CartPosConstraint::CalcJacobianBlock(const Eigen::Ref<const Eigen::VectorXd>& joint_vals,
                                           Jacobian& jac_block) const
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   info_.manip->calcFwdKin(transforms_cache, joint_vals);
   const Eigen::Isometry3d source_tf = transforms_cache[info_.source_frame] * info_.source_frame_offset;
@@ -353,6 +371,13 @@ Eigen::Isometry3d CartPosConstraint::GetTargetPose() const { return info_.target
 
 Eigen::Isometry3d CartPosConstraint::GetCurrentPose() const
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   const VectorXd joint_vals = this->GetVariables()->GetComponent(position_var_->GetName())->GetValues();
   info_.manip->calcFwdKin(transforms_cache, joint_vals);

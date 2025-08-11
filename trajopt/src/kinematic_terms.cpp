@@ -120,6 +120,14 @@ DynamicCartPoseErrCalculator::DynamicCartPoseErrCalculator(
 
 VectorXd DynamicCartPoseErrCalculator::operator()(const VectorXd& dof_vals) const
 {
+#ifndef USE_THREAD_LOCAL
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   manip_->calcFwdKin(transforms_cache, dof_vals);
   const Isometry3d source_tf = transforms_cache[source_frame_] * source_frame_offset_;
@@ -176,6 +184,15 @@ DynamicCartPoseJacCalculator::DynamicCartPoseJacCalculator(
 MatrixXd DynamicCartPoseJacCalculator::operator()(const VectorXd& dof_vals) const
 {
   // Duplicated from calcForwardNumJac in trajopt_sco/src/num_diff.cpp, but with ignoring tolerances
+
+#ifndef USE_THREAD_LOCAL
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   manip_->calcFwdKin(transforms_cache, dof_vals);
   const Isometry3d source_tf = transforms_cache[source_frame_] * source_frame_offset_;
@@ -278,6 +295,14 @@ CartPoseErrCalculator::CartPoseErrCalculator(
 
 VectorXd CartPoseErrCalculator::operator()(const VectorXd& dof_vals) const
 {
+#ifndef USE_THREAD_LOCAL
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   manip_->calcFwdKin(transforms_cache, dof_vals);
   const Isometry3d source_tf = transforms_cache[source_frame_] * source_frame_offset_;
@@ -369,6 +394,14 @@ CartPoseJacCalculator::CartPoseJacCalculator(
 
 MatrixXd CartPoseJacCalculator::operator()(const VectorXd& dof_vals) const
 {
+#ifndef USE_THREAD_LOCAL
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   manip_->calcFwdKin(transforms_cache, dof_vals);
   const Isometry3d source_tf = transforms_cache[source_frame_] * source_frame_offset_;
@@ -433,6 +466,14 @@ CartVelErrCalculator::CartVelErrCalculator(std::shared_ptr<const tesseract_kinem
 VectorXd CartVelErrCalculator::operator()(const VectorXd& dof_vals) const
 {
   auto n_dof = static_cast<int>(manip_->numJoints());
+
+#ifndef USE_THREAD_LOCAL
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());  // NOLINT
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
 
   transforms_cache.clear();
 

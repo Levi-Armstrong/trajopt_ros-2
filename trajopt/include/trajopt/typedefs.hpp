@@ -3,8 +3,9 @@
 TRAJOPT_IGNORE_WARNINGS_PUSH
 #include <Eigen/Core>
 #include <vector>
-#include <tesseract_visualization/fwd.h>
 #include <unordered_map>
+#include <boost/thread/tss.hpp>
+#include <tesseract_visualization/fwd.h>
 TRAJOPT_IGNORE_WARNINGS_POP
 
 #include <trajopt_sco/modeling.hpp>
@@ -48,7 +49,11 @@ public:
   }
 
 protected:
+#ifdef USE_THREAD_LOCAL
   static thread_local tesseract_common::TransformMap transforms_cache;  // NOLINT
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;  // NOLINT
+#endif
 };
 
 /**  @brief Adds plotting to the MatrixOfVector class in trajopt_sco */
@@ -61,7 +66,11 @@ public:
   }
 
 protected:
+#ifdef USE_THREAD_LOCAL
   static thread_local tesseract_common::TransformMap transforms_cache;  // NOLINT
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache_ptr;
+#endif
 };
 
 /**  @brief Adds plotting to the CostFromErrFunc class in trajopt_sco */

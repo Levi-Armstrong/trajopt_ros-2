@@ -15,7 +15,7 @@ find_package(Eigen3 REQUIRED)
 find_package(ifopt REQUIRED)
 find_package(tesseract_environment REQUIRED)
 find_package(ros_industrial_cmake_boilerplate REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS thread)
 
 if(NOT TARGET console_bridge::console_bridge)
   add_library(console_bridge::console_bridge INTERFACE IMPORTED)
@@ -67,7 +67,8 @@ target_link_libraries(
          trajopt::trajopt_common
          tesseract::tesseract_environment
          Eigen3::Eigen
-         Boost::boost)
+         Boost::boost
+         Boost::thread)
 target_compile_options(${PROJECT_NAME} PRIVATE ${TRAJOPT_COMPILE_OPTIONS_PRIVATE})
 target_compile_options(${PROJECT_NAME} PUBLIC ${TRAJOPT_COMPILE_OPTIONS_PUBLIC})
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${TRAJOPT_COMPILE_DEFINITIONS})

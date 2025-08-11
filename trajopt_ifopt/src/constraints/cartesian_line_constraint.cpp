@@ -71,7 +71,11 @@ CartLineInfo::CartLineInfo(std::shared_ptr<const tesseract_kinematics::JointGrou
     throw std::runtime_error("CartLineInfo: The indices list length is zero.");
 }
 
+#ifdef USE_THREAD_LOCAL
 thread_local tesseract_common::TransformMap CartLineConstraint::transforms_cache;  // NOLINT
+#else
+boost::thread_specific_ptr<tesseract_common::TransformMap> CartLineConstraint::transforms_cache_ptr;  // NOLINT
+#endif
 
 CartLineConstraint::CartLineConstraint(CartLineInfo info,
                                        std::shared_ptr<const JointPosition> position_var,
@@ -116,6 +120,13 @@ CartLineConstraint::CartLineConstraint(CartLineInfo info,
 
 Eigen::VectorXd CartLineConstraint::CalcValues(const Eigen::Ref<const Eigen::VectorXd>& joint_vals) const
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   info_.manip->calcFwdKin(transforms_cache, joint_vals);
   const Eigen::Isometry3d source_tf = transforms_cache[info_.source_frame] * info_.source_frame_offset;
@@ -154,6 +165,13 @@ void CartLineConstraint::SetBounds(const std::vector<ifopt::Bounds>& bounds)
 void CartLineConstraint::CalcJacobianBlock(const Eigen::Ref<const Eigen::VectorXd>& joint_vals,
                                            Jacobian& jac_block) const
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache_ptr.get() == nullptr)
+    transforms_cache_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache = *transforms_cache_ptr;
+#endif
+
   transforms_cache.clear();
   info_.manip->calcFwdKin(transforms_cache, joint_vals);
   const Eigen::Isometry3d source_tf = transforms_cache[info_.source_frame] * info_.source_frame_offset;

@@ -28,6 +28,7 @@
 #include <trajopt_common/macros.h>
 TRAJOPT_IGNORE_WARNINGS_PUSH
 #include <Eigen/Core>
+#include <boost/thread/tss.hpp>
 #include <memory>
 #include <functional>
 
@@ -113,8 +114,13 @@ public:
   virtual const trajopt_common::CollisionCoeffData& GetCollisionCoeffData() const = 0;
 
 protected:
+#ifdef USE_THREAD_LOCAL
   static thread_local tesseract_common::TransformMap transforms_cache0;  // NOLINT
   static thread_local tesseract_common::TransformMap transforms_cache1;  // NOLINT
+#else
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache0_ptr;
+  static boost::thread_specific_ptr<tesseract_common::TransformMap> transforms_cache1_ptr;
+#endif
 };
 
 /**

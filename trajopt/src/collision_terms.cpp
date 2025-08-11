@@ -200,8 +200,13 @@ void DebugPrintInfo(const tesseract_collision::ContactResult& res,
 
 }  // namespace
 
+#ifdef USE_THREAD_LOCAL
 thread_local tesseract_common::TransformMap CollisionEvaluator::transforms_cache0;  // NOLINT
 thread_local tesseract_common::TransformMap CollisionEvaluator::transforms_cache1;  // NOLINT
+#else
+boost::thread_specific_ptr<tesseract_common::TransformMap> CollisionEvaluator::transforms_cache0_ptr;  // NOLINT
+boost::thread_specific_ptr<tesseract_common::TransformMap> CollisionEvaluator::transforms_cache1_ptr;  // NOLINT
+#endif
 
 GradientResults CollisionEvaluator::GetGradient(const Eigen::VectorXd& dofvals,
                                                 const tesseract_collision::ContactResult& contact_result,
@@ -453,7 +458,16 @@ CollisionEvaluator::GetContactResultCached(const DblVec& x)
    * using member variable and thread_local. Just making the dist_map thread_local and making a copy for sub_dist_result
    * in CalcCollisions had the most significant impact on peformance and memory.
    */
+#ifdef USE_THREAD_LOCAL
   thread_local tesseract_collision::ContactResultMap dist_map;
+#else
+  static boost::thread_specific_ptr<tesseract_collision::ContactResultMap> dist_map_cache_ptr;
+  if (dist_map_cache_ptr.get() == nullptr)
+    dist_map_cache_ptr.reset(new tesseract_collision::ContactResultMap());  // NOLINT
+
+  tesseract_collision::ContactResultMap& dist_map = *dist_map_cache_ptr;
+#endif
+
   dist_map.clear();
 
   CalcCollisions(x, dist_map);
@@ -657,6 +671,13 @@ void SingleTimestepCollisionEvaluator::CalcCollisions(const DblVec& x,
 void SingleTimestepCollisionEvaluator::CalcCollisions(const Eigen::Ref<const Eigen::VectorXd>& dof_vals,
                                                       tesseract_collision::ContactResultMap& dist_results)
 {
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache0_ptr.get() == nullptr)
+    transforms_cache0_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache0 = *transforms_cache0_ptr;
+#endif
+
   transforms_cache0.clear();
   get_state_fn_(transforms_cache0, dof_vals);
 
@@ -826,12 +847,20 @@ void DiscreteCollisionEvaluator::CalcCollisions(const Eigen::Ref<const Eigen::Ve
                                                 tesseract_collision::ContactResultMap& dist_results)
 {
   assert(dist_results.empty());
+
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache0_ptr.get() == nullptr)
+    transforms_cache0_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache0 = *transforms_cache0_ptr;
+#endif
+
+  transforms_cache0.clear();
+
   // The first step is to see if the distance between two states is larger than the longest valid segment. If larger
   // the collision checking is broken up into multiple casted collision checks such that each check is less then
   // the longest valid segment length.
   const double dist = (dof_vals1 - dof_vals0).norm();
-
-  transforms_cache0.clear();
 
   // If not empty then there are links that are not part of the kinematics object that can move (dynamic environment)
   if (!diff_active_link_names_.empty())
@@ -918,6 +947,18 @@ void DiscreteCollisionEvaluator::Plot(const std::shared_ptr<tesseract_visualizat
 
   const Eigen::VectorXd dofvals0 = sco::getVec(x, vars0_);
   const Eigen::VectorXd dofvals1 = sco::getVec(x, vars1_);
+
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache0_ptr.get() == nullptr)
+    transforms_cache0_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache0 = *transforms_cache0_ptr;
+
+  if (transforms_cache1_ptr.get() == nullptr)
+    transforms_cache1_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache1 = *transforms_cache1_ptr;
+#endif
 
   transforms_cache0.clear();
   transforms_cache1.clear();
@@ -1078,6 +1119,18 @@ void CastCollisionEvaluator::CalcCollisions(const Eigen::Ref<const Eigen::Vector
   // the collision checking is broken up into multiple casted collision checks such that each check is less then
   // the longest valid segment length.
   const double dist = (dof_vals1 - dof_vals0).norm();
+
+#ifndef USE_THREAD_LOCAL
+  if (transforms_cache0_ptr.get() == nullptr)
+    transforms_cache0_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache0 = *transforms_cache0_ptr;
+
+  if (transforms_cache1_ptr.get() == nullptr)
+    transforms_cache1_ptr.reset(new tesseract_common::TransformMap());
+
+  tesseract_common::TransformMap& transforms_cache1 = *transforms_cache1_ptr;
+#endif
 
   transforms_cache0.clear();
   transforms_cache1.clear();

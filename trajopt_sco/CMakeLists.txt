@@ -21,7 +21,7 @@ elseif(NOT TARGET jsoncpp_lib)
   add_library(jsoncpp_lib ALIAS JsonCpp::JsonCpp)
 endif()
 find_package(ros_industrial_cmake_boilerplate REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS thread)
 find_package(OpenMP REQUIRED)
 
 # qpOASES
@@ -86,6 +86,7 @@ if(qpOASES_FOUND AND TRAJOPT_BUILD_qpOASES)
 endif()
 
 add_library(${PROJECT_NAME} ${SCO_SOURCE_FILES})
+target_link_libraries(${PROJECT_NAME} PRIVATE Boost::thread)
 if(GUROBI_FOUND)
   target_link_libraries(${PROJECT_NAME} PRIVATE ${GUROBI_LIBRARIES})
   target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${GUROBI_INCLUDE_DIRS})
